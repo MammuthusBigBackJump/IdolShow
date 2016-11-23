@@ -1,0 +1,176 @@
+package rom.nd.com.whitening.imageview;
+
+import android.opengl.GLES20;
+
+/**
+ * Created by Administrator on 2015/10/27.
+ */
+public class ImagePortraiture extends GPUImageFilter
+{
+    public static final String BILATERAL_VERTEX_SHADER = "" +
+            "attribute vec4 position;\n" +
+            "attribute vec4 inputTextureCoordinate;\n" +
+
+            "const int GAUSSIAN_SAMPLES = 9;\n" +
+
+            "uniform vec2 singleStepOffset;\n" +  //纹理中一个像素占据的宽和高
+
+            "varying vec2 textureCoordinate;\n" +
+            "varying vec2 blurCoordinates[GAUSSIAN_SAMPLES];\n" +
+
+            "void main()\n" +
+            "{\n" +
+            "	gl_Position = position;\n" +
+            "	textureCoordinate = inputTextureCoordinate.xy;\n" +
+
+            "	int multiplier = 0;\n" + //乘子
+            "	vec2 blurStep;\n" +
+
+            "	for (int i = 0; i < GAUSSIAN_SAMPLES; i++)\n" +
+            "	{\n" +
+            "		multiplier = (i - ((GAUSSIAN_SAMPLES - 1) / 2));\n" +
+
+            "		blurStep = float(multiplier) * singleStepOffset;\n" +
+            "		blurCoordinates[i] = inputTextureCoordinate.xy + blurStep;\n" +
+            "	}\n" +
+            "}";
+
+    public static final String BILATERAL_FRAGMENT_SHADER = "" +
+            "uniform sampler2D inputImageTexture;\n" +
+
+            " const lowp int GAUSSIAN_SAMPLES = 9;\n" +
+
+            " varying highp vec2 textureCoordinate;\n" +
+            " varying highp vec2 blurCoordinates[GAUSSIAN_SAMPLES];\n" +
+
+            " uniform mediump float distanceNormalizationFactor;\n" +
+
+            " void main()\n" + //0.18 0.05 0.09 0.12 0.15 0.15 0.12 0.09 0.05
+            " {\n" +
+            "     lowp vec4 centralColor;\n" + //卷积核中心像素颜色值
+            "     lowp float gaussianWeightTotal;\n" +
+            "     lowp vec4 sum;\n" +
+            "     lowp vec4 sampleColor;\n" +  //邻域像素颜色值
+            "     lowp float distanceFromCentralColor;\n" +
+            "     lowp float gaussianWeight;\n" +
+            "     \n" +
+            "     centralColor = texture2D(inputImageTexture, blurCoordinates[4]);\n" +
+            "     gaussianWeightTotal = 0.18;\n" +
+            "     sum = centralColor * 0.18;\n" +
+            "     \n" +
+            "     sampleColor = texture2D(inputImageTexture, blurCoordinates[0]);\n" +
+            "     distanceFromCentralColor = min(distance(centralColor, sampleColor) * distanceNormalizationFactor, 1.0);\n" +
+            "     gaussianWeight = 0.05 * (1.0 - distanceFromCentralColor);\n" +
+            "     gaussianWeightTotal += gaussianWeight;\n" +
+            "     sum += sampleColor * gaussianWeight;\n" +
+
+            "     sampleColor = texture2D(inputImageTexture, blurCoordinates[1]);\n" +
+            "     distanceFromCentralColor = min(distance(centralColor, sampleColor) * distanceNormalizationFactor, 1.0);\n" +
+            "     gaussianWeight = 0.09 * (1.0 - distanceFromCentralColor);\n" +
+            "     gaussianWeightTotal += gaussianWeight;\n" +
+            "     sum += sampleColor * gaussianWeight;\n" +
+
+            "     sampleColor = texture2D(inputImageTexture, blurCoordinates[2]);\n" +
+            "     distanceFromCentralColor = min(distance(centralColor, sampleColor) * distanceNormalizationFactor, 1.0);\n" +
+            "     gaussianWeight = 0.12 * (1.0 - distanceFromCentralColor);\n" +
+            "     gaussianWeightTotal += gaussianWeight;\n" +
+            "     sum += sampleColor * gaussianWeight;\n" +
+
+            "     sampleColor = texture2D(inputImageTexture, blurCoordinates[3]);\n" +
+            "     distanceFromCentralColor = min(distance(centralColor, sampleColor) * distanceNormalizationFactor, 1.0);\n" +
+            "     gaussianWeight = 0.15 * (1.0 - distanceFromCentralColor);\n" +
+            "     gaussianWeightTotal += gaussianWeight;\n" +
+            "     sum += sampleColor * gaussianWeight;\n" +
+
+            "     sampleColor = texture2D(inputImageTexture, blurCoordinates[5]);\n" +
+            "     distanceFromCentralColor = min(distance(centralColor, sampleColor) * distanceNormalizationFactor, 1.0);\n" +
+            "     gaussianWeight = 0.15 * (1.0 - distanceFromCentralColor);\n" +
+            "     gaussianWeightTotal += gaussianWeight;\n" +
+            "     sum += sampleColor * gaussianWeight;\n" +
+
+            "     sampleColor = texture2D(inputImageTexture, blurCoordinates[6]);\n" +
+            "     distanceFromCentralColor = min(distance(centralColor, sampleColor) * distanceNormalizationFactor, 1.0);\n" +
+            "     gaussianWeight = 0.12 * (1.0 - distanceFromCentralColor);\n" +
+            "     gaussianWeightTotal += gaussianWeight;\n" +
+            "     sum += sampleColor * gaussianWeight;\n" +
+
+            "     sampleColor = texture2D(inputImageTexture, blurCoordinates[7]);\n" +
+            "     distanceFromCentralColor = min(distance(centralColor, sampleColor) * distanceNormalizationFactor, 1.0);\n" +
+            "     gaussianWeight = 0.09 * (1.0 - distanceFromCentralColor);\n" +
+            "     gaussianWeightTotal += gaussianWeight;\n" +
+            "     sum += sampleColor * gaussianWeight;\n" +
+
+            "     sampleColor = texture2D(inputImageTexture, blurCoordinates[8]);\n" +
+            "     distanceFromCentralColor = min(distance(centralColor, sampleColor) * distanceNormalizationFactor, 1.0);\n" +
+            "     gaussianWeight = 0.05 * (1.0 - distanceFromCentralColor);\n" +
+            "     gaussianWeightTotal += gaussianWeight;\n" +
+            "     sum += sampleColor * gaussianWeight;\n" +
+            "     gl_FragColor = sum / gaussianWeightTotal;\n" +
+            //"     gl_FragColor.r = distanceNormalizationFactor / 20.0; \n" +
+            " }";
+
+    private float mDistanceNormalizationFactor;// distanceNormalizationFactor more little, the image is more blur
+    private int mDisFactorLocation;
+    private int mSingleStepOffsetLocation;
+
+    private boolean mbPortraiture;
+
+    public ImagePortraiture()
+    {
+        this(8.0f);
+    }
+
+    public ImagePortraiture(final float distanceNormalizationFactor)
+    {
+        super(BILATERAL_VERTEX_SHADER, BILATERAL_FRAGMENT_SHADER);
+        mDistanceNormalizationFactor = distanceNormalizationFactor;
+
+        mbPortraiture = false;
+    }
+
+    @Override
+    public void onInit()
+    {
+        super.onInit();
+        mDisFactorLocation = GLES20.glGetUniformLocation(getProgram(), "distanceNormalizationFactor");
+        mSingleStepOffsetLocation = GLES20.glGetUniformLocation(getProgram(), "singleStepOffset");
+
+        onInitialized();
+    }
+
+    @Override
+    public void onInitialized()
+    {
+        super.onInitialized();
+        setDistanceNormalizationFactor(mDistanceNormalizationFactor);
+    }
+
+    public void setDistanceNormalizationFactor(final float newValue)
+    {
+        mDistanceNormalizationFactor = newValue;
+        setFloat(mDisFactorLocation, newValue);
+    }
+
+    private void setTexelSize(final float width, final float height)
+    {
+        // 修改TexelSize能调整模糊效果, (如5.0)此值一定程度上越大,模糊效果越明显
+        setFloatVec2(mSingleStepOffsetLocation, new float[]{3.0f / width, 3.0f / height});
+    }
+
+    @Override
+    public void onOutputSizeChanged(final int width, final int height)
+    {
+        super.onOutputSizeChanged(width, height);
+        setTexelSize(width, height);
+    }
+
+    public void setIsPortraiture(final boolean bPortraiture)
+    {
+        mbPortraiture = bPortraiture;
+    }
+
+    public boolean getIsPortraiture()
+    {
+        return mbPortraiture;
+    }
+}
